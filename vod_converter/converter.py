@@ -12,7 +12,7 @@ See `main.py` for the supported types, and `voc.py` and `kitti.py` for reference
 """
 from jsonschema import validate as raw_validate
 from jsonschema.exceptions import ValidationError as SchemaError
-
+from tqdm import tqdm
 
 def validate_schema(data, schema):
     """Wraps default implementation but accepting tuples as arrays too.
@@ -142,14 +142,17 @@ def convert(*, from_path, ingestor, to_path, egestor, select_only_known_labels, 
 
 
 def validate_image_detections(image_detections):
+    print ('running validate_image_detections !')
     for i, image_detection in enumerate(image_detections):
         try:
             validate_schema(image_detection, IMAGE_DETECTION_SCHEMA)
         except SchemaError as se:
+            print(image_detection)
             raise Exception(f"at index {i}") from se
         image = image_detection['image']
         for detection in image_detection['detections']:
             if detection['right'] >= image['width'] or detection['bottom'] >= image['height']:
+                print (detection['right'],image['width'] ,detection['bottom'], image['height'])
                 raise ValueError(f"Image {image} has out of bounds bounding box {detection}")
             if detection['right'] <= detection['left'] or detection['bottom'] <= detection['top']:
                 raise ValueError(f"Image {image} has zero dimension bbox {detection}")
@@ -164,21 +167,25 @@ def convert_labels(*, image_detections, expected_labels,
             convert_dict[alias.lower()] = label
 
     final_image_detections = []
-    for image_detection in image_detections:
+    print (type(image_detections), 'type')
+    # for image_detection in image_detections:
+    for i in tqdm(range(len(image_detections))):
         detections = []
-        for detection in image_detection['detections']:
+        for detection in image_detections[i]['detections']:
             label = detection['label']
             fallback_label = label if not select_only_known_labels else None
             final_label = convert_dict.get(label.lower(), fallback_label)
             if final_label:
                 detection['label'] = final_label
                 detections.append(detection)
-        image_detection['detections'] = detections
+        # image_detection['detections'] = detections
+        image_detections[i]['detections']= detections
         if detections:
-            final_image_detections.append(image_detection)
+            # final_image_detections.append(image_detection)
+            final_image_detections.append(image_detections[i])
         elif not filter_images_without_labels:
-            final_image_detections.append(image_detection)
-
+            # final_image_detections.append(image_detection)
+            final_image_detections.append(image_detections[i])
     return final_image_detections
 
 

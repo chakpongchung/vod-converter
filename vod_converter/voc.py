@@ -9,6 +9,8 @@ import shutil
 
 from converter import Ingestor, Egestor
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
+
 
 
 class VOCIngestor(Ingestor):
@@ -35,6 +37,7 @@ class VOCIngestor(Ingestor):
                     score = cols[1]
                     if score != '1':
                         continue
+                # print( cols[0])
                 fnames.append(cols[0])
             return fnames
 
@@ -106,6 +109,7 @@ class VOCEgestor(Egestor):
         }
 
     def egest(self, *, image_detections, root):
+        print ("running voc egestor: \n")
         image_sets_path = f"{root}/VOC2012/ImageSets/Main"
         images_path = f"{root}/VOC2012/JPEGImages"
         annotations_path = f"{root}/VOC2012/Annotations"
@@ -115,7 +119,9 @@ class VOCEgestor(Egestor):
         for to_create in [image_sets_path, images_path, annotations_path]:
             os.makedirs(to_create, exist_ok=True)
 
-        for image_detection in image_detections:
+        # for image_detection in image_detections:
+        for image_detection in tqdm(image_detections):
+        
             image = image_detection['image']
             image_id = image['id']
             src_extension = image['path'].split('.')[-1]
@@ -155,10 +161,10 @@ class VOCEgestor(Egestor):
                     'pose': 'Unspecified'
                 })
                 add_sub_node(x_object, 'bndbox', {
-                    'xmin': detection['left'] + 1,
-                    'xmax': detection['right'] + 1,
-                    'ymin': detection['top'] + 1,
-                    'ymax': detection['bottom'] + 1
+                    'xmin': detection['left'] +0,
+                    'xmax': detection['right'] + 0,
+                    'ymin': detection['top'] + 0,
+                    'ymax': detection['bottom'] + 0
                 })
 
             ET.ElementTree(xml_root).write(f"{annotations_path}/{image_id}.xml")
