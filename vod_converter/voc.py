@@ -15,8 +15,9 @@ from tqdm import tqdm
 
 class VOCIngestor(Ingestor):
     def validate(self, root):
+        print ('validate()')
         path = f"{root}/VOC2012"
-        for subdir in ["ImageSets", "JPEGImages", "Annotations"]:
+        for subdir in tqdm(["ImageSets", "JPEGImages", "Annotations"]):
             if not os.path.isdir(f"{path}/{subdir}"):
                 return False, f"Expected subdirectory {subdir} within {path}"
             if not os.path.isfile(f"{path}/ImageSets/Main/trainval.txt"):
@@ -110,15 +111,16 @@ class VOCEgestor(Egestor):
 
     def egest(self, *, image_detections, root):
         print ("running voc egestor: \n")
-        image_sets_path = f"{root}/VOC2012/ImageSets/Main"
-        images_path = f"{root}/VOC2012/JPEGImages"
-        annotations_path = f"{root}/VOC2012/Annotations"
-        segmentations_path = f"{root}/VOC2012/SegmentationObject"
+        image_sets_path = f"{root}/VOC2007/ImageSets/Main"
+        images_path = f"{root}/VOC2007/JPEGImages"
+        annotations_path = f"{root}/VOC2007/Annotations"
+        segmentations_path = f"{root}/VOC2007/SegmentationObject"
         segmentations_dir_created = False
-
-        for to_create in [image_sets_path, images_path, annotations_path]:
+        print ('os.makedirs()')
+        for to_create in tqdm([image_sets_path, images_path, annotations_path]):
             os.makedirs(to_create, exist_ok=True)
 
+        print ('for image_detection in tqdm(image_detections):')
         # for image_detection in image_detections:
         for image_detection in tqdm(image_detections):
         
@@ -138,7 +140,7 @@ class VOCEgestor(Egestor):
 
             xml_root = ET.Element('annotation')
             add_text_node(xml_root, 'filename', f"{image_id}.{src_extension}")
-            add_text_node(xml_root, 'folder', 'VOC2012')
+            add_text_node(xml_root, 'folder', 'VOC2007')
             add_text_node(xml_root, 'segmented', int(segmentations_dir_created))
 
             add_sub_node(xml_root, 'size', {

@@ -24,7 +24,7 @@ class RAPIngestor(Ingestor):
     def __init__(self):
         print("__init__ began loading .mat into memory!")
 
-        RAPpath="/mnt/falcon/local/d2/users/310195626/data/pedestrian"
+        RAPpath="/local/home/cpchung/data/pedestrian"
         mat_contents = sio.loadmat(RAPpath+'/RAP_annotation/RAP_annotation.mat')
         numOfImgs= len(mat_contents['RAP_annotation']['imagesname'][0][0])
         self.d={}
@@ -78,7 +78,9 @@ class RAPIngestor(Ingestor):
             [933, 358, 221, 361,\
              1025, 360, 123, 163,\
              935, 456, 210, 263, \
-            935, 718, 4, 1]
+             935, 718, 4, 1] 
+
+             #2,98,212,361
 
 
 
@@ -101,7 +103,7 @@ class RAPIngestor(Ingestor):
 
     def _get_image_detection(self, root, image_id):
         path=root
-        image_path = f"{path}/RAP_dataset/{image_id}.png"
+        image_path = f"{path}/RAP_dataset/{image_id}.jpg"
         if not os.path.isfile(image_path):
             raise Exception(f"Expected {image_path} to exist.")
 
@@ -150,11 +152,20 @@ class RAPIngestor(Ingestor):
         }
 
     def _get_detection(self, i , g4):
-        if all(v == 0 for v in g4[i]):
+        if all(v == 0 for v in g4[i]) or i==0:
             # bounding box not visible
             return
-        if g4[i][2]==1 or g4[i][3]==1:
+
+
+        if g4[i][2]<=3 or g4[i][3]<=3 :
             # bounding box is a thin slice
+            return
+        xmin= max(g4[i][0]-g4[0][0],int(0.35*g4[0][2]))
+        ymin= max(g4[i][1]-g4[0][1],int(0.35*g4[0][3]))
+        xmax= min(g4[i][0]-g4[0][0]+g4[i][2]-1,int(0.65*g4[0][2])-1)
+        ymax= min(g4[i][1]-g4[0][1]+g4[i][3]-1,int(0.65*g4[0][3])-1)
+
+        if (xmax-xmin)<10 or (ymax-ymin)<10:
             return
         label=['fullBody','headShoulder','upperBoddy','lowerBody']
         ret= {
@@ -164,10 +175,10 @@ class RAPIngestor(Ingestor):
             # 'right': float(bndbox.find('xmax').text) - 1,
             # 'bottom': float(bndbox.find('ymax').text) - 1,
             'label': label[i],
-            'left':   max(g4[i][0]-g4[0][0],0),
-            'top':    max(g4[i][1]-g4[0][1],0),
-            'right':  min(g4[i][0]-g4[0][0]+g4[i][2],g4[0][2]-1),
-            'bottom': min(g4[i][1]-g4[0][1]+g4[i][3],g4[0][3]-1),
+            'left':   xmin,
+            'top':    ymin,
+            'right':  xmax,
+            'bottom': ymax,
             }
         return ret
 
