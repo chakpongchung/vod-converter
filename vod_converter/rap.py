@@ -95,8 +95,9 @@ class RAPIngestor(Ingestor):
     def ingest(self, path):
         image_names = self._get_image_ids(path)
         # print (image_names,"image_names")
-        return [self._get_image_detection(path, image_name) for image_name in image_names]
-
+        # return [self._get_image_detection(path, image_name) for image_name in image_names]
+        return list(filter(None,(self._get_image_detection(path, image_name) for image_name in image_names)))
+        
     def _get_image_ids(self, root):
         # print (len(list(self.d.keys())))
         return list(self.d.keys())
@@ -132,10 +133,11 @@ class RAPIngestor(Ingestor):
         n = 4
         g4 = [a[k:k+n] for k in range(0,len(a),n)]
 
-        # for i in range(len(g4)):
-        #     print (self._get_detection(i,g4) )
-        # print (list(filter(None, (self._get_detection(i,g4) for i in range(len(g4))))))
         # print (input("Press Enter to continue..."))
+        bbox=list(filter(None, (self._get_detection(i,g4) for i in range(len(g4)))))
+        if bbox ==[]:
+            print(image_path)
+            return
 
         return {
             'image': {
@@ -146,7 +148,7 @@ class RAPIngestor(Ingestor):
                 'height': image_height
             },
             # 'detections': [self._get_detection(i,g4) for i in range(len(g4))]
-            'detections': list(filter(None, (self._get_detection(i,g4) for i in range(len(g4)))))
+            'detections': bbox
             # list(filter(func,data)) #python 3.x
 
         }
@@ -160,14 +162,30 @@ class RAPIngestor(Ingestor):
         if g4[i][2]<=3 or g4[i][3]<=3 :
             # bounding box is a thin slice
             return
-        xmin= max(g4[i][0]-g4[0][0],int(0.35*g4[0][2]))
-        ymin= max(g4[i][1]-g4[0][1],int(0.35*g4[0][3]))
-        xmax= min(g4[i][0]-g4[0][0]+g4[i][2]-1,int(0.65*g4[0][2])-1)
-        ymax= min(g4[i][1]-g4[0][1]+g4[i][3]-1,int(0.65*g4[0][3])-1)
 
-        if (xmax-xmin)<10 or (ymax-ymin)<10:
-            return
+        # handling bbox margins
+        margin=0.2
+        # xmin= max(g4[i][0]-g4[0][0],int(margin*g4[0][2]))
+        # ymin= max(g4[i][1]-g4[0][1],int(margin*g4[0][3]))
+        # xmax= min(g4[i][0]-g4[0][0]+g4[i][2]-1,int((1-margin)*g4[0][2])-1)
+        # ymax= min(g4[i][1]-g4[0][1]+g4[i][3]-1,int((1-margin)*g4[0][3])-1)
+
+        if g4[i][0]-g4[0][0]< int(margin*g4[0][2]):return
+        else:xmin=g4[i][0]-g4[0][0]
+
+        if g4[i][1]-g4[0][1]< int(margin*g4[0][3]):return
+        else:ymin=g4[i][1]-g4[0][1]
+
+        if g4[i][0]-g4[0][0]+g4[i][2]-1 > int((1-margin)*g4[0][2])-1:return
+        else:xmax=g4[i][0]-g4[0][0]+g4[i][2]-1
+
+        if g4[i][1]-g4[0][1]+g4[i][3]-1 > int((1-margin)*g4[0][3])-1:return
+        else:ymax=g4[i][1]-g4[0][1]+g4[i][3]-1
+
+        if (xmax-xmin)<10 or (ymax-ymin)<10:return
+
         label=['fullBody','headShoulder','upperBoddy','lowerBody']
+        
         ret= {
             # 'label': node.find('name').text,
             # 'left': float(bndbox.find('xmin').text) - 1,

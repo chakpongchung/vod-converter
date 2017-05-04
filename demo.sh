@@ -44,5 +44,4 @@ vod_converter/main.py --from rap --from-path ~/data/pedestrian \
 # CAM31_2014-03-18_20140318125002-20140318125546_tarid93_frame2823_line1.png
 
 
-cp ~/data/pedestrian/voc/VOC2007/ImageSets/Main/trainval.txt \ 
-~/data/pedestrian/voc/VOC2007/ImageSets/Main/test.txt
+cp ~/data/pedestrian/voc/VOC2007/ImageSets/Main/trainval.txt ~/data/pedestrian/voc/VOC2007/ImageSets/Main/test.txt
