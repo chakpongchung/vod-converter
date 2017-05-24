@@ -13,7 +13,10 @@ See `main.py` for the supported types, and `voc.py` and `kitti.py` for reference
 from jsonschema import validate as raw_validate
 from jsonschema.exceptions import ValidationError as SchemaError
 from tqdm import tqdm
+import concurrent
+
 import cv2
+
 
 def validate_schema(data, schema):
     """Wraps default implementation but accepting tuples as arrays too.
@@ -132,7 +135,7 @@ def convert(*, from_path, ingestor, to_path, egestor, select_only_known_labels, 
         return from_valid, from_msg
 
     image_detections = ingestor.ingest(from_path)
-    # validate_image_detections(image_detections)
+    validate_image_detections(image_detections)
     image_detections = convert_labels(
         image_detections=image_detections, expected_labels=egestor.expected_labels(),
         select_only_known_labels=select_only_known_labels,
@@ -142,46 +145,77 @@ def convert(*, from_path, ingestor, to_path, egestor, select_only_known_labels, 
     return True, ''
 
 
-def validate_image_detections(image_detections):
-    print ('running validate_image_detections !')
-    for i, image_detection in enumerate(tqdm(image_detections)):
-        try:
-            validate_schema(image_detection, IMAGE_DETECTION_SCHEMA)
-        except SchemaError as se:
-            print(image_detection)
-            raise Exception(f"at index {i}") from se
+def validate_helper(image_detection, i):
+    try:
+        validate_schema(image_detection, IMAGE_DETECTION_SCHEMA)
+    except SchemaError as se:
+        print(image_detection)
+        raise Exception(f"at index {i}") from se
 
-        image = image_detection['image']
-        img = cv2.imread(image['path'], 1)
-        height, width = img.shape[:2]
+    image = image_detection['image']
+    img = cv2.imread(image['path'], 1)
+    height, width = img.shape[:2]
+    # scale=3
+    # extended =(scale-1)/scale/2
 
+    for detection in image_detection['detections']:
+        if detection['right'] >= image['width'] or detection['bottom'] >= image['height']:
+            print (detection['right'], image['width'],
+                   detection['bottom'], image['height'])
+            raise ValueError(f"Image {image} has out of bounds bounding box {detection}")
+        if detection['right'] <= detection['left'] or detection['bottom'] <= detection['top']:
+            raise ValueError(f"Image {image} has zero dimension bbox {detection}")
 
-        scale=3
-        extended =(scale-1)/scale/2
-
-        for detection in image_detection['detections']:
-            if detection['right'] >= image['width'] or detection['bottom'] >= image['height']:
-                print (detection['right'],image['width'] ,detection['bottom'], image['height'])
-                raise ValueError(f"Image {image} has out of bounds bounding box {detection}")
-            if detection['right'] <= detection['left'] or detection['bottom'] <= detection['top']:
-                raise ValueError(f"Image {image} has zero dimension bbox {detection}")
-
-        
             # xmin=detection['left']+int(extended*width)
             # ymin=detection['top']+int(extended*height)
             # xmax=detection['right']+int(extended*width)
             # ymax=detection['bottom']+int(extended*height)
 
-            # cv2.rectangle(img,(xmin,ymin),(xmax,ymax),(0,255,0),2)
+        xmin=detection['left']
+        ymin=detection['top']
+        xmax=detection['right']
+        ymax=detection['bottom']
+
+        cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
 
         # if len(image_detection['detections'])<4:
         #     print(image['path'])
         #     # cv2.imshow('image',img)
         #     cv2.waitKey()
-        #     cv2.imwrite('./temp/'+image['path'].split('/')[-1],img)
-            
+    cv2.imwrite('./temp/'+image['path'].split('/')[-1], img)
 
-def converter(self,i,image_detections,final_image_detections):
+
+def validate_image_detections(image_detections):
+    print ('running validate_image_detections !')
+    # for i, image_detection in enumerate(tqdm(image_detections)):
+    # validate_helper(image_detection, i)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+
+        future_to_url = {executor.submit(validate_helper, image_detections[i], i): i for i in tqdm(range(len(image_detections)) )}
+
+        kwargs = {
+            'total': len(image_detections),
+            'unit': 'it',
+            'unit_scale': True,
+            'leave': True
+        }
+        for future in tqdm(concurrent.futures.as_completed(future_to_url), **kwargs): 
+            url = future_to_url[future]
+            try:
+                data = future.result()
+                # print ('self._get_image_detection',data)
+                if data is not None:
+                    res.append(data)
+            except Exception as exc:
+                print('%r generated an exception: %s' % (url, exc))
+            else:
+                # print('%r page is %d bytes' % (url, len(data)))
+                pass
+
+
+
+def converter(self, i, image_detections, final_image_detections):
     for detection in image_detections[i]['detections']:
         label = detection['label']
         fallback_label = label if not select_only_known_labels else None
@@ -190,14 +224,14 @@ def converter(self,i,image_detections,final_image_detections):
             detection['label'] = final_label
             detections.append(detection)
         # image_detection['detections'] = detections
-        image_detections[i]['detections']= detections
+        image_detections[i]['detections'] = detections
         if detections:
             # final_image_detections.append(image_detection)
             final_image_detections.append(image_detections[i])
         elif not filter_images_without_labels:
             # final_image_detections.append(image_detection)
             final_image_detections.append(image_detections[i])
-    
+
 
 def convert_labels(*, image_detections, expected_labels,
                    select_only_known_labels, filter_images_without_labels):
@@ -221,7 +255,7 @@ def convert_labels(*, image_detections, expected_labels,
                 detection['label'] = final_label
                 detections.append(detection)
         # image_detection['detections'] = detections
-        image_detections[i]['detections']= detections
+        image_detections[i]['detections'] = detections
         if detections:
             # final_image_detections.append(image_detection)
             final_image_detections.append(image_detections[i])
@@ -231,27 +265,25 @@ def convert_labels(*, image_detections, expected_labels,
         # self.converter(i,image_detections,[]])
     return final_image_detections
 
+    # # for i in tqdm(range(numOfImgs)):
+    # #     self.loading(i)
+    # print (multiprocessing.cpu_count())
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+    #     future_to_url = {executor.submit(
+    #         self.loading, i): i for i in tqdm(range(numOfImgs))}
 
-
-            # # for i in tqdm(range(numOfImgs)):
-            # #     self.loading(i)
-            # print (multiprocessing.cpu_count())
-            # with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-            #     future_to_url = {executor.submit(
-            #         self.loading, i): i for i in tqdm(range(numOfImgs))}
-
-            #     kwargs = {
-            #         'total': len(future_to_url ),
-            #         'unit': 'nap',
-            #         'unit_scale': True,
-            #         'leave': True
-            #     }
-            #     for future in tqdm(concurrent.futures.as_completed(future_to_url),**kwargs):
-            #         url = future_to_url[future]
-            #         try:
-            #             data = future.result()
-            #         except Exception as exc:
-            #             print('%r generated an exception: %s' % (url, exc))
-            #         else:
-            #             # print('%r page is %d bytes' % (url, len(data)))
-            #             pass
+    #     kwargs = {
+    #         'total': len(future_to_url ),
+    #         'unit': 'nap',
+    #         'unit_scale': True,
+    #         'leave': True
+    #     }
+    #     for future in tqdm(concurrent.futures.as_completed(future_to_url),**kwargs):
+    #         url = future_to_url[future]
+    #         try:
+    #             data = future.result()
+    #         except Exception as exc:
+    #             print('%r generated an exception: %s' % (url, exc))
+    #         else:
+    #             # print('%r page is %d bytes' % (url, len(data)))
+    #             pass

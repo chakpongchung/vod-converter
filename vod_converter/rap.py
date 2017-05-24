@@ -55,13 +55,13 @@ class RAPIngestor(Ingestor):
             # for i in tqdm(range(numOfImgs)):
             #     self.loading(i)
             print (multiprocessing.cpu_count())
-            with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()*2/3) as executor:
                 future_to_url = {executor.submit(
                     self.loading, i): i for i in tqdm(range(numOfImgs))}
 
                 kwargs = {
                     'total': len(future_to_url ),
-                    'unit': 'nap',
+                    'unit': 'it',
                     'unit_scale': True,
                     'leave': True
                 }
@@ -149,7 +149,7 @@ class RAPIngestor(Ingestor):
 
             kwargs = {
                 'total': len(image_names),
-                'unit': 'nap',
+                'unit': 'it',
                 'unit_scale': True,
                 'leave': True
             }
@@ -199,6 +199,10 @@ class RAPIngestor(Ingestor):
 
         image_width = self.d[image_id]['width']
         image_height = self.d[image_id]['height']
+
+        if (image_width<100 or image_height<55):
+            return 
+
         a = self.d[image_id]['positions']
         n = 4
 
@@ -237,6 +241,7 @@ class RAPIngestor(Ingestor):
             # print ('thin slice: ',image_path)
             return
 
+
         # handling bbox margins
         margin = 0
 
@@ -266,17 +271,28 @@ class RAPIngestor(Ingestor):
         label = ['fullBody', 'headShoulder', 'upperBoddy', 'lowerBody']
 
 
-        img = cv2.imread(image_path, 1)
-        height, width = img.shape[:2]
 
+        # img = cv2.imread(image_path, 1)
+        # height, width = img.shape[:2]
 
-        scale=3
-        extended =(scale-1)/scale/2
+        # scale=3
+        # extended =(scale-1)/scale/2
 
-        xmin=xmin+int(extended*width)
-        ymin=ymin+int(extended*height)
-        xmax=xmax+int(extended*width)
-        ymax=ymax+int(extended*height)
+        # xmin=xmin+int(extended*width)
+        # ymin=ymin+int(extended*height)
+        # xmax=xmax+int(extended*width)
+        # ymax=ymax+int(extended*height)
+
+        # if not all(i >= 100 for i in [xmin,ymin,xmax,ymax]):
+        #     print ('coord <100: ',image_path)
+
+        #     cv2.rectangle(img,(xmin,ymin),(xmax,ymax),(0,255,0),2)
+
+        #     # cv2.imshow('image',img)
+        #     # cv2.waitKey()
+        #     cv2.imwrite('./temp/'+image_path.split('/')[-1],img)
+        #     return
+
 
 
         ret = {
