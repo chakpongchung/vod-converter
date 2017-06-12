@@ -1,7 +1,6 @@
 """
-Ingestor and egestor for RAP formats.
+Ingestor and egestor for siiting data formats.
 
-http://host.robots.ox.ac.uk/pascal/VOC/voc2012/htmldoc/index.html
 """
 
 import json
@@ -15,25 +14,74 @@ import concurrent
 import cv2
 import numpy as np
 import scipy.io as sio
+import scipy
 from tqdm import tqdm
 
 from converter import Egestor, Ingestor
 
 
-class RAPIngestor(Ingestor):
+class SittingIngestor(Ingestor):
 
-    def loading(self, i):
-        # for i in tqdm(range(numOfImgs)):
-        name = os.path.splitext(
-            self.mat_contents['RAP_annotation']['imagesname'][0][0][i][0][0])[0]
-        positions = self.mat_contents['RAP_annotation']['position'][0][0][i]
-        img = cv2.imread(self.RAPpath + "/RAP_dataset/" + name + ".png")
+    def loadBboxFromMat(self, filename):
+        mat = scipy.io.loadmat(filename, struct_as_record=True)
+        img = mat['M']
+        # print img[np.nonzero(img)]
+        img = img.astype(np.uint8)
+        # for i in range(img.shape[0]):
+        # 	for j in range(img.shape[1]):
+        # 		if img[i][j]>0:
+        # 			print img[i][j]
+        # cv2.imshow('maat',img)
+        # cv2.waitKey(0)
+
+        # cv2.imwrite('test.jpg',img)
+        ret, thresh = cv2.threshold(img, 0, 255, 0)
+
+        im2, contours, hierarchy = cv2.findContours(
+            thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # print len(contours)
+
+        imdis = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+
+        # c=max(contours, key = cv2.contourArea)
+
+        area = []
+        print (len(contours))
+        for i in range(len(contours)):
+            area.append(cv2.contourArea(contours[i]))
+
+        # print (np.argmax(area))
+        cnt = contours[np.argmax(area)]
+        # cv2.drawContours(imdis, [cnt], 0, (0,255,0), 1)
+        # cv2.drawContours(imdis, contours, -1, (0,255,0), 3)
+
+        # cv2.imshow('maat',imdis)
+        # cv2.waitKey(0)
+
+        x, y, w, h = cv2.boundingRect(cnt)
+        img = cv2.rectangle(imdis, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # cv2.imshow('maat',img)
+        # cv2.waitKey(0)
+
+        return x, y, w, h
+
+    def loading(self, name):
+        # name = os.path.splitext(
+        #     self.mat_contents['RAP_annotation']['imagesname'][0][0][i][0][0])[0]
+        
+        # positions = self.mat_contents['RAP_annotation']['position'][0][0][i]
+
+
+        img = cv2.imread(self.RAPpath + "/data/FaceDetectData/CMStest/sitting/img/" + name + ".jpg")
+        # print (self.RAPpath + "/data/FaceDetectData/CMStest/sitting/img/" + name + ".jpg")
         height, width = img.shape[:2]
 
         self.d[name] = {}
         self.d[name]['height'] = height
         self.d[name]['width'] = width
-        self.d[name]['positions'] = positions.tolist()
+        self.d[name]['positions'] = self.mat_contents[name]
+        # self.d[name]['positions'] = self.mat_contents[name].tolist()
 
         if self.d[name]['positions'][2] > width:
             self.d[name]['positions'][2] = width
@@ -42,13 +90,34 @@ class RAPIngestor(Ingestor):
             self.d[name]['positions'][3] = height
 
     def __init__(self):
-        print("__init__ began loading .mat into memory!")
+        print("__init__ from sitting began loading .mat into memory!")
 
-        self.RAPpath = "/local/home/cpchung/data/pedestrian"
-        self.mat_contents = sio.loadmat(
-            self.RAPpath + '/RAP_annotation/RAP_annotation.mat')
-        numOfImgs = len(
-            self.mat_contents['RAP_annotation']['imagesname'][0][0])
+        self.RAPpath = "/local/home/cpchung"
+
+        self.mat_contents = {}
+
+        # self.mat_contents = sio.loadmat(
+        #     self.RAPpath + '/RAP_annotation/RAP_annotation.mat')
+
+        rootDir = self.RAPpath + '/data/FaceDetectData/CMStest/sitting/masks/'
+        for dirName, subdirList, fileList in os.walk(rootDir):
+            # print('Found directory: %s' % dirName)
+            if subdirList != []:
+                continue
+
+            for fname in fileList:
+                if fname.endswith(('.mat')):
+                    x, y, w, h = self.loadBboxFromMat(rootDir + fname)
+                    # print(fname, x, y, w, h)
+
+                    self.mat_contents[fname.replace(".mat",'')] = [x, y, w, h]
+
+        # print (self.mat_contents)
+
+
+        numOfImgs = len(self.mat_contents)
+        # input("Press Enter to continue...")
+
         self.d = {}
         DEBUG = 0
         if not DEBUG:
@@ -56,8 +125,13 @@ class RAPIngestor(Ingestor):
             #     self.loading(i)
             print (multiprocessing.cpu_count())
             with concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count() * 2 / 3) as executor:
+                # future_to_url = {executor.submit(
+                #     self.loading, i): i for i in tqdm(range(numOfImgs))}
+
                 future_to_url = {executor.submit(
-                    self.loading, i): i for i in tqdm(range(numOfImgs))}
+                    self.loading, name): name for name in self.mat_contents}
+
+                
 
                 kwargs = {
                     'total': len(future_to_url),
@@ -175,7 +249,9 @@ class RAPIngestor(Ingestor):
     def _get_image_detection(self, root, image_id):
 
         path = root
-        image_path = f"{path}/RAP_dataset/{image_id}.jpg"
+        # image_path = f"{path}/RAP_dataset/{image_id}.jpg"
+        image_path = f"{path}/img/{image_id}.jpg"
+        
         if not os.path.isfile(image_path):
             raise Exception(f"Expected {image_path} to exist.")
 
@@ -216,7 +292,7 @@ class RAPIngestor(Ingestor):
     def _get_detection(self, i, g4, image_path):
 
             # bounding box not visible
-        if all(v == 0 for v in g4[i]) or i == 0:
+        if all(v == 0 for v in g4[i]) or i == 8880:
             # print ('invisible: ',image_path)
             return
 
@@ -229,6 +305,8 @@ class RAPIngestor(Ingestor):
         margin = 0
 
         if g4[i][0] - g4[0][0] < int(margin * g4[0][2]):
+            print('returned','image_path')
+            
             return
         else:
             xmin = g4[i][0] - g4[0][0]
@@ -287,92 +365,6 @@ class RAPIngestor(Ingestor):
             'bottom': ymax,
         }
         return ret
-
-
-class RAPEgestor(Egestor):
-
-    def expected_labels(self):
-        return {
-            'aeroplane': [],
-            'bicycle': [],
-            'bird': [],
-            'boat': [],
-            'bottle': [],
-            'bus': [],
-            'car': [],
-            'cat': [],
-            'chair': [],
-            'cow': [],
-            'diningtable': [],
-            'dog': [],
-            'horse': [],
-            'motorbike': [],
-            'person': ['pedestrian'],
-            'pottedplant': [],
-            'sheep': [],
-            'sofa': [],
-            'train': [],
-            'tvmonitor': []
-        }
-
-    def egest(self, *, image_detections, root):
-        image_sets_path = f"{root}/VOC2012/ImageSets/Main"
-        images_path = f"{root}/VOC2012/JPEGImages"
-        annotations_path = f"{root}/VOC2012/Annotations"
-        segmentations_path = f"{root}/VOC2012/SegmentationObject"
-        segmentations_dir_created = False
-
-        for to_create in [image_sets_path, images_path, annotations_path]:
-            os.makedirs(to_create, exist_ok=True)
-
-        for image_detection in image_detections:
-            image = image_detection['image']
-            image_id = image['id']
-            src_extension = image['path'].split('.')[-1]
-            shutil.copyfile(image['path'], f"{images_path}/{image_id}.{src_extension}")
-
-            with open(f"{image_sets_path}/trainval.txt", 'a') as out_image_index_file:
-                out_image_index_file.write(f'{image_id}\n')
-
-            if image['segmented_path'] is not None:
-                if not segmentations_dir_created:
-                    os.makedirs(segmentations_path)
-                    segmentations_dir_created = True
-                shutil.copyfile(image['segmented_path'], f"{segmentations_path}/{image_id}.png")
-
-            xml_root = ET.Element('annotation')
-            add_text_node(xml_root, 'filename', f"{image_id}.{src_extension}")
-            add_text_node(xml_root, 'folder', 'VOC2012')
-            add_text_node(xml_root, 'segmented',
-                          int(segmentations_dir_created))
-
-            add_sub_node(xml_root, 'size', {
-                'depth': 3,
-                'width': image['width'],
-                'height': image['height']
-            })
-            add_sub_node(xml_root, 'source', {
-                'annotation': 'Dummy',
-                'database': 'Dummy',
-                'image': 'Dummy'
-            })
-
-            for detection in image_detection['detections']:
-                x_object = add_sub_node(xml_root, 'object', {
-                    'name': detection['label'],
-                    'difficult': 0,
-                    'occluded': 0,
-                    'truncated': 0,
-                    'pose': 'Unspecified'
-                })
-                add_sub_node(x_object, 'bndbox', {
-                    'xmin': detection['left'] + 1,
-                    'xmax': detection['right'] + 1,
-                    'ymin': detection['top'] + 1,
-                    'ymax': detection['bottom'] + 1
-                })
-
-            ET.ElementTree(xml_root).write(f"{annotations_path}/{image_id}.xml")
 
 
 def add_sub_node(node, name, kvs):

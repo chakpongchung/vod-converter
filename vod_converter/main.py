@@ -14,6 +14,7 @@ import kitti_tracking
 import udacity
 import voc
 import rap
+import sitting
 import sys
 
 logger = logging.getLogger()
@@ -25,7 +26,8 @@ INGESTORS = {
     'voc': voc.VOCIngestor(),
     'udacity-crowdai': udacity.UdacityCrowdAIIngestor(),
     'udacity-autti': udacity.UdacityAuttiIngestor(),
-    'rap': rap.RAPIngestor()
+    'rap': rap.RAPIngestor(),
+    'sitting': sitting.SittingIngestor()
 }
 
 EGESTORS = {
@@ -35,6 +37,7 @@ EGESTORS = {
 
 
 def main(*, from_path, from_key, to_path, to_key, select_only_known_labels, filter_images_without_labels):
+    
     success, msg = converter.convert(from_path=from_path, ingestor=INGESTORS[from_key],
                                      to_path=to_path, egestor=EGESTORS[to_key],
                                      select_only_known_labels=select_only_known_labels,
@@ -43,7 +46,7 @@ def main(*, from_path, from_key, to_path, to_key, select_only_known_labels, filt
         print(f"Successfully converted from {from_key} to {to_key}.")
     else:
         print(f"Failed to convert from {from_key} to {to_key}: {msg}")
-        return 1
+        return 1 
 
 
 def parse_args():
@@ -65,6 +68,7 @@ def parse_args():
         '--to-path',
         dest='to_path', required=True,
         help="Path to output directory for converted dataset.", type=str)
+ 
     optional.add_argument(
         '--select-only-known-labels',
         help="only include labels known to the destination dataset (e.g skip 'trafficlight' if VOC doesn't know about it)",
@@ -87,6 +91,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    print ('!!!!!!!!!!!!!!!!!')
     sys.exit(main(from_path=args.from_path, from_key=args.from_key,
                   to_path=args.to_path, to_key=args.to_key,
                   select_only_known_labels=args.select_only_known_labels,

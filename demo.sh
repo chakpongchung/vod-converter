@@ -41,7 +41,14 @@ $py \
 vod_converter/main.py --from rap --from-path ~/data/pedestrian \
 --to voc --to-path ~/data/pedestrian/voc
 
-# CAM31_2014-03-18_20140318125002-20140318125546_tarid93_frame2823_line1.png
-
-
 cp ~/data/pedestrian/voc/VOC2007/ImageSets/Main/trainval.txt ~/data/pedestrian/voc/VOC2007/ImageSets/Main/test.txt
+
+
+
+# $py \
+# vod_converter/main.py \
+# --from sitting \
+# --from-path /local/home/cpchung/data/FaceDetectData/CMStest/sitting \
+# --to voc --to-path ~/data/sitting/voc
+
+# tree /local/home/cpchung/data/sitting/voc
